@@ -1,3 +1,5 @@
+import { api } from "@/services/api";
+
 const JOB_STORAGE_KEY = "internarea_jobs";
 const INTERNSHIP_STORAGE_KEY = "internarea_internships";
 const APPLICATION_STORAGE_KEY = "internarea_applications";
@@ -216,6 +218,9 @@ export const addJob = (job: any) => {
   };
   const nextJobs = [nextJob, ...jobs];
   saveJobs(nextJobs);
+  api.createJob(job).catch((err) => {
+    console.warn("Backend sync failed for createJob:", err?.message || err);
+  });
   return nextJob;
 };
 export const getJobById = (id: string) => getJobs().find((job: any) => job._id === id) || null;
@@ -233,6 +238,9 @@ export const addInternship = (internship: any) => {
   };
   const nextInternships = [nextInternship, ...internships];
   saveInternships(nextInternships);
+  api.createInternship(internship).catch((err) => {
+    console.warn("Backend sync failed for createInternship:", err?.message || err);
+  });
   return nextInternship;
 };
 export const getInternshipById = (id: string) =>
@@ -252,6 +260,9 @@ export const addApplication = (application: any) => {
   };
   const nextApplications = [nextApplication, ...applications];
   saveApplications(nextApplications);
+  api.createApplication(application).catch((err) => {
+    console.warn("Backend sync failed for createApplication:", err?.message || err);
+  });
   return nextApplication;
 };
 export const updateApplicationStatus = (id: string, status: string) => {
@@ -260,6 +271,9 @@ export const updateApplicationStatus = (id: string, status: string) => {
     application._id === id ? { ...application, status } : application
   );
   saveApplications(updated);
+  api.updateApplicationStatus(id, status).catch((err) => {
+    console.warn("Backend sync failed for updateApplicationStatus:", err?.message || err);
+  });
   return updated;
 };
 export const getApplicationById = (id: string) =>
@@ -282,6 +296,9 @@ export const addPublicPost = (post: any) => {
   };
   const nextPosts = [nextPost, ...posts];
   savePublicPosts(nextPosts);
+  api.createPublicPost(post).catch((err) => {
+    console.warn("Backend sync failed for createPublicPost:", err?.message || err);
+  });
   return nextPost;
 };
 export const mutatePublicPost = (postId: string, update: any) => {
@@ -300,6 +317,9 @@ export const likePost = (postId: string, uid: string) => {
     return { ...post, likes };
   });
   savePublicPosts(nextPosts);
+  api.likePublicPost(postId, uid).catch((err) => {
+    console.warn("Backend sync failed for likePublicPost:", err?.message || err);
+  });
   return nextPosts;
 };
 export const commentPost = (postId: string, comment: any) => {
@@ -310,6 +330,9 @@ export const commentPost = (postId: string, comment: any) => {
       : post
   );
   savePublicPosts(nextPosts);
+  api.commentPublicPost(postId, comment).catch((err) => {
+    console.warn("Backend sync failed for commentPublicPost:", err?.message || err);
+  });
   return nextPosts;
 };
 export const sharePost = (postId: string, share: any) => {
@@ -320,6 +343,9 @@ export const sharePost = (postId: string, share: any) => {
       : post
   );
   savePublicPosts(nextPosts);
+  api.sharePublicPost(postId, share).catch((err) => {
+    console.warn("Backend sync failed for sharePublicPost:", err?.message || err);
+  });
   return nextPosts;
 };
 
@@ -339,6 +365,11 @@ export const addOrUpdatePublicUser = (user: any) => {
     ? users.map((item: any) => (item.uid === user.uid ? nextUser : item))
     : [...users, nextUser];
   savePublicUsers(nextUsers);
+  if (user?.uid) {
+    api.syncPublicUser(user).catch((err) => {
+      console.warn("Backend sync failed for syncPublicUser:", err?.message || err);
+    });
+  }
   return nextUser;
 };
 export const updatePublicUserFriends = (uid: string, friendUid: string) => {
@@ -349,7 +380,72 @@ export const updatePublicUserFriends = (uid: string, friendUid: string) => {
     return { ...user, friends };
   });
   savePublicUsers(nextUsers);
+  api.addPublicFriend(uid, friendUid).catch((err) => {
+    console.warn("Backend sync failed for addPublicFriend:", err?.message || err);
+  });
   return nextUsers.find((user: any) => user.uid === uid) || null;
 };
 export const getPublicUserByUid = (uid: string) =>
   getPublicUsers().find((user: any) => user.uid === uid) || null;
+
+// Backend Fetch & Synchronize helpers
+export const fetchInternshipsFromBackend = async () => {
+  try {
+    const data = await api.getInternships();
+    if (Array.isArray(data) && data.length > 0) {
+      saveInternships(data);
+      return data;
+    }
+  } catch (err: any) {
+    console.warn("Backend fetch failed for internships:", err?.message || err);
+  }
+  return getInternships();
+};
+
+export const fetchJobsFromBackend = async () => {
+  try {
+    const data = await api.getJobs();
+    if (Array.isArray(data) && data.length > 0) {
+      saveJobs(data);
+      return data;
+    }
+  } catch (err: any) {
+    console.warn("Backend fetch failed for jobs:", err?.message || err);
+  }
+  return getJobs();
+};
+
+export const fetchApplicationsFromBackend = async () => {
+  try {
+    const data = await api.getApplications();
+    if (Array.isArray(data) && data.length > 0) {
+      saveApplications(data);
+      return data;
+    }
+  } catch (err: any) {
+    console.warn("Backend fetch failed for applications:", err?.message || err);
+  }
+  return getApplications();
+};
+
+export const fetchPublicPostsFromBackend = async () => {
+  try {
+    const data = await api.getPublicPosts();
+    if (Array.isArray(data) && data.length > 0) {
+      savePublicPosts(data);
+      return data;
+    }
+  } catch (err: any) {
+    console.warn("Backend fetch failed for public posts:", err?.message || err);
+  }
+  return getPublicPosts();
+};
+
+export const syncAllFromBackend = async () => {
+  return Promise.allSettled([
+    fetchInternshipsFromBackend(),
+    fetchJobsFromBackend(),
+    fetchApplicationsFromBackend(),
+    fetchPublicPostsFromBackend(),
+  ]);
+};

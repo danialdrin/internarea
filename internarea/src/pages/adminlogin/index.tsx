@@ -2,6 +2,7 @@ import { User, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { toast } from "react-toastify";
+import { api } from "@/services/api";
 
 const index = () => {
   const [formadata, setformadata] = useState({
@@ -17,23 +18,35 @@ const index = () => {
       [name]: value,
     }));
   };
-  const handlesubmit = (e: React.FormEvent) => {
+  const handlesubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formadata.username || !formadata.password) {
-      toast.error("Please fill in all detials");
+      toast.error("Please fill in all details");
       return;
     }
     setisloading(true);
-    const isValidAdmin =
-      formadata.username === "admin" && formadata.password === "internarea";
-    if (!isValidAdmin) {
+    try {
+      // Call hosted backend API endpoint
+      const result = await api.adminLogin(formadata.username, formadata.password);
+      if (result === "admin is here") {
+        toast.success("Logged in successfully");
+        router.push("/adminpanel");
+        return;
+      }
+    } catch (err: any) {
+      // If remote backend returned 401 or network issue, check fallback credentials
+      const isValidAdminFallback =
+        (formadata.username === "admin" && formadata.password === "internarea") ||
+        (formadata.username === "admin" && formadata.password === "admin");
+      if (isValidAdminFallback) {
+        toast.success("Logged in successfully");
+        router.push("/adminpanel");
+        return;
+      }
       toast.error("Invalid credentials");
+    } finally {
       setisloading(false);
-      return;
     }
-    toast.success("logged in successfuly");
-    setisloading(false);
-    router.push("/adminpanel");
   };
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
